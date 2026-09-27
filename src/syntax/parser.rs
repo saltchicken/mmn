@@ -13,7 +13,8 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .map(|s: &str| Expr::Num(s.parse().unwrap()))
             .padded();
 
-        let list = expr.clone()
+        let list = expr
+            .clone()
             .repeated()
             .collect::<Vec<_>>()
             .delimited_by(just('['), just(']'))
@@ -46,15 +47,22 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
         .map(|items| {
             let mut aliases = HashMap::new();
             let mut expressions = Vec::new();
-            
+
             for item in items {
                 match item {
-                    TopLevelItem::Alias(name, expr) => { aliases.insert(name, expr); }
-                    TopLevelItem::Expr(expr) => { expressions.push(expr); }
+                    TopLevelItem::Alias(name, expr) => {
+                        aliases.insert(name, expr);
+                    }
+                    TopLevelItem::Expr(expr) => {
+                        expressions.push(expr);
+                    }
                 }
             }
-            
-            Scene { aliases, expressions }
+
+            Scene {
+                aliases,
+                expressions,
+            }
         })
         .then_ignore(end())
 }

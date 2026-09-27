@@ -20,7 +20,6 @@ pub struct Scene {
 }
 
 impl Scene {
-    /// Pass 2: Converts a Scene of raw Exprs into a Vec of safely Executable Exprs.
     pub fn resolve_all(&self) -> Result<Vec<ResolvedExpr>, String> {
         self.expressions
             .iter()
@@ -43,7 +42,9 @@ impl Scene {
                 Ok(ResolvedExpr::List(resolved_list))
             }
             Expr::Ref(name) => {
-                let alias_expr = self.aliases.get(name)
+                let alias_expr = self
+                    .aliases
+                    .get(name)
                     .ok_or_else(|| format!("Unresolved alias: '{}'", name))?;
                 // Recursively resolve the alias
                 self.resolve_expr(alias_expr, depth + 1)

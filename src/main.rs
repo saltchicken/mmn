@@ -9,7 +9,7 @@ use syntax::traversal::TraversalContext;
 // Return a generic Error from main
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         // returning an error string directly
         return Err(format!("Usage: {} <input_file>", args[0]).into());
@@ -24,13 +24,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse(&file_contents)
         .into_result()
         .map_err(|errs| format!("Syntax Error: {:?}", errs))?;
-    
+
     println!("--- AST After Pass 1 (Parse) ---\n{:?}\n", scene);
 
     // PASS 2: Resolution (Returns our new safe types)
     let resolved_expressions = scene.resolve_all()?;
 
-    println!("--- AST After Pass 2 (Resolution) ---\n{:?}\n", resolved_expressions);
+    println!(
+        "--- AST After Pass 2 (Resolution) ---\n{:?}\n",
+        resolved_expressions
+    );
 
     // PASS 3: Traversal / Execution
     let mut ctx = TraversalContext::default();
