@@ -33,14 +33,12 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
 pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a, char>>> {
     let expr = expr_parser();
 
-    // Parses: #root 60
     let config = just('#')
         .ignore_then(text::ascii::ident())
         .padded()
         .then(expr.clone())
         .map(|(name, e)| TopLevelItem::Config(name.to_string(), e));
 
-    // Parses: riff = [0 2 4 7]
     let alias_assign = text::ascii::ident()
         .padded()
         .then_ignore(just('=').padded())
@@ -66,11 +64,11 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
             for item in items {
                 match item {
                     TopLevelItem::Config(name, expr) => {
-                        if name == "root" {
+                        if name == "ROOT" {
                             if let Expr::Num(n) = expr {
                                 root_note = Some(n as u8);
                             }
-                        } else if name == "scale" {
+                        } else if name == "SCALE" {
                             if let Expr::Ref(s) = expr {
                                 scale = Some(s);
                             }
