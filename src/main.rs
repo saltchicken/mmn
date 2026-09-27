@@ -1,11 +1,10 @@
-mod ast;
-mod parser;
-mod traversal;
+mod syntax;
 
 use chumsky::Parser;
 use std::env;
 use std::fs;
-use traversal::TraversalContext;
+use syntax::parser;
+use syntax::traversal::TraversalContext;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

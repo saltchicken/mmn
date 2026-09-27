@@ -1,4 +1,4 @@
-use crate::ast::Expr;
+use super::ast::Expr;
 
 /// Holds the state of the traversal as we walk down the tree.
 #[derive(Debug, Default)]

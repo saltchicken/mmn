@@ -1,4 +1,4 @@
-use crate::ast::Expr;
+use super::ast::Expr;
 use chumsky::prelude::*;
 
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> {
