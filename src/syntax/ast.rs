@@ -17,6 +17,7 @@ pub enum ResolvedExpr {
 pub struct Scene {
     pub root_note: Option<u8>,
     pub scale: Option<String>,
+    pub bpm: Option<u32>,
     pub aliases: HashMap<String, Expr>,
     pub expressions: Vec<Expr>,
 }

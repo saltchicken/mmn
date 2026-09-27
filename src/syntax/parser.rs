@@ -91,6 +91,7 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
             let mut octave = None;
             
             let mut scale = None;
+            let mut bpm = None;
             let mut aliases = HashMap::new();
             let mut expressions = Vec::new();
 
@@ -120,6 +121,16 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
                             } else {
                                 println!("Warning: #SCALE must be a string like minor or major");
                             }
+                        } else if name_upper == "BPM" {
+                            if let Expr::Num(n) = expr {
+                                if n > 0 {
+                                    bpm = Some(n as u32);
+                                } else {
+                                    println!("Warning: #BPM must be a positive number");
+                                }
+                            } else {
+                                println!("Warning: #BPM must be a number");
+                            } 
                         } else {
                             println!("Warning: Unknown config directive '#{}'", name);
                         }
@@ -153,6 +164,7 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
             Scene {
                 root_note,
                 scale,
+                bpm,
                 aliases,
                 expressions,
             }

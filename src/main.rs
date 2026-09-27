@@ -39,13 +39,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut ctx = TraversalContext::default();
     
     // Apply configurations parsed from the text file (#root, #scale)
-    ctx.apply_config(scene.root_note, scene.scale.clone());
+    ctx.apply_config(scene.root_note, scene.scale.clone(), scene.bpm);
     
     ctx.walk_all(&resolved_expressions);
 
     println!("--- Pass 3 Results (MIDI Track) ---");
     println!("Root Note: {}", ctx.root_note);
     println!("Scale Intervals: {:?}", ctx.scale);
+    println!("BPM: {}", ctx.bpm);
     println!("Total Ticks: {}", ctx.current_tick);
     
     for note in &ctx.track {

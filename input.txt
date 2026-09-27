@@ -1,10 +1,6 @@
 #ROOT C
 #OCTAVE 6
 #SCALE minor
+#BPM 95
 
-x = 10
-y = 20
-y
 [0 1 2 3]
-[10 [20 30] 40]
-[  1   x   [ 3 ]  ]

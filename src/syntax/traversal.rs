@@ -16,6 +16,7 @@ pub struct TraversalContext {
     // Musical Context
     pub root_note: u8,   // 60 = Middle C
     pub scale: Vec<u8>,  // Semitone offsets from the root
+    pub bpm: u32,
 }
 
 impl Default for TraversalContext {
@@ -26,13 +27,14 @@ impl Default for TraversalContext {
             root_note: 60, // C4
             // Default to a Major Scale (Ionian)
             scale: vec![0, 2, 4, 5, 7, 9, 11],
+            bpm: 120,
         }
     }
 }
 
 impl TraversalContext {
     /// Applies scene configurations, overriding defaults
-    pub fn apply_config(&mut self, root_note: Option<u8>, scale_name: Option<String>) {
+    pub fn apply_config(&mut self, root_note: Option<u8>, scale_name: Option<String>, bpm: Option<u32>) {
         if let Some(r) = root_note {
             self.root_note = r;
         }
@@ -53,6 +55,9 @@ impl TraversalContext {
                     vec![0, 2, 4, 5, 7, 9, 11]
                 }
             };
+        }
+        if let Some(b) = bpm {
+            self.bpm = b;
         }
     }
 
