@@ -1,3 +1,6 @@
+#root 62
+#scale minor
+
 x = 10
 y = 20
 y

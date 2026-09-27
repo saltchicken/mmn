@@ -15,6 +15,8 @@ pub enum ResolvedExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
+    pub root_note: Option<u8>,
+    pub scale: Option<String>,
     pub aliases: HashMap<String, Expr>,
     pub expressions: Vec<Expr>,
 }
