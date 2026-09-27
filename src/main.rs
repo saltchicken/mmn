@@ -6,44 +6,39 @@ use std::fs;
 use syntax::parser;
 use syntax::traversal::TraversalContext;
 
-fn main() {
+// Return a generic Error from main
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() < 2 {
-        eprintln!("Usage: {} <input_file>", args[0]);
-        std::process::exit(1);
+        // returning an error string directly
+        return Err(format!("Usage: {} <input_file>", args[0]).into());
     }
 
     let filename = &args[1];
-    let file_contents = fs::read_to_string(filename)
-        .unwrap_or_else(|err| panic!("Failed to read file '{}': {}", filename, err));
+    // Use ? to automatically handle file read errors
+    let file_contents = fs::read_to_string(filename)?;
 
-    // PASS 1: Parse the entire file into a single AST
-    let mut scene = match parser::scene_parser().parse(&file_contents).into_result() {
-        Ok(ast) => ast,
-        Err(errs) => {
-            println!("Syntax Error:\n{:?}", errs);
-            std::process::exit(1);
-        }
-    };
+    // PASS 1: Parse
+    let scene = parser::scene_parser()
+        .parse(&file_contents)
+        .into_result()
+        .map_err(|errs| format!("Syntax Error: {:?}", errs))?;
     
-    println!("--- AST After Pass 1 (Parse) ---");
-    println!("{:?}\n", scene);
+    println!("--- AST After Pass 1 (Parse) ---\n{:?}\n", scene);
 
-    // PASS 2: Expand all aliases globally
-    if let Err(e) = scene.expand_all_refs() {
-        println!("Resolution Error: {}", e);
-        std::process::exit(1);
-    }
+    // PASS 2: Resolution (Returns our new safe types)
+    let resolved_expressions = scene.resolve_all()?;
 
-    println!("--- AST After Pass 2 (Resolution) ---");
-    println!("{:?}\n", scene.expressions);
+    println!("--- AST After Pass 2 (Resolution) ---\n{:?}\n", resolved_expressions);
 
     // PASS 3: Traversal / Execution
-    let mut ctx = TraversalContext::new();
-    ctx.walk_scene(&scene);
+    let mut ctx = TraversalContext::default();
+    ctx.walk_all(&resolved_expressions);
 
     println!("--- Pass 3 Results ---");
     println!("Sum: {}", ctx.total_sum);
     println!("Buffer: {:?}", ctx.output_buffer);
+
+    Ok(())
 }

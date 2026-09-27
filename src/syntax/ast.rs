@@ -8,53 +8,46 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ResolvedExpr {
+    Num(i32),
+    List(Vec<ResolvedExpr>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
     pub aliases: HashMap<String, Expr>,
     pub expressions: Vec<Expr>,
 }
 
 impl Scene {
-    /// Pass 2: Resolves all references before execution begins.
-    pub fn expand_all_refs(&mut self) -> Result<(), String> {
-        // Step A: Expand aliases that reference other aliases
-        let env = self.aliases.clone();
-        for expr in self.aliases.values_mut() {
-            expr.expand_refs(&env, 0)?;
-        }
-
-        // Step B: Use the fully expanded aliases to resolve the main execution expressions
-        let fully_expanded_env = self.aliases.clone();
-        for expr in &mut self.expressions {
-            expr.expand_refs(&fully_expanded_env, 0)?;
-        }
-        
-        Ok(())
+    /// Pass 2: Converts a Scene of raw Exprs into a Vec of safely Executable Exprs.
+    pub fn resolve_all(&self) -> Result<Vec<ResolvedExpr>, String> {
+        self.expressions
+            .iter()
+            .map(|expr| self.resolve_expr(expr, 0))
+            .collect()
     }
-}
 
-impl Expr {
-    pub fn expand_refs(&mut self, env: &HashMap<String, Expr>, depth: usize) -> Result<(), String> {
+    fn resolve_expr(&self, expr: &Expr, depth: usize) -> Result<ResolvedExpr, String> {
         if depth > 32 {
-            return Err("Max alias expansion depth exceeded (circular reference?)".to_string());
+            return Err("Max alias expansion depth exceeded".to_string());
         }
-        
-        match self {
-            Expr::Ref(name) => {
-                if let Some(resolved) = env.get(name) {
-                    let mut cloned = resolved.clone();
-                    cloned.expand_refs(env, depth + 1)?;
-                    *self = cloned;
-                } else {
-                    return Err(format!("Unresolved alias: '{}'", name));
-                }
-            }
+
+        match expr {
+            Expr::Num(n) => Ok(ResolvedExpr::Num(*n)),
             Expr::List(list) => {
-                for el in list {
-                    el.expand_refs(env, depth)?;
-                }
+                let resolved_list = list
+                    .iter()
+                    .map(|e| self.resolve_expr(e, depth))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(ResolvedExpr::List(resolved_list))
             }
-            Expr::Num(_) => {}
+            Expr::Ref(name) => {
+                let alias_expr = self.aliases.get(name)
+                    .ok_or_else(|| format!("Unresolved alias: '{}'", name))?;
+                // Recursively resolve the alias
+                self.resolve_expr(alias_expr, depth + 1)
+            }
         }
-        Ok(())
     }
 }

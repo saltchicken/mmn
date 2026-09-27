@@ -1,4 +1,4 @@
-use super::ast::{Expr, Scene};
+use super::ast::ResolvedExpr;
 
 #[derive(Debug, Default)]
 pub struct TraversalContext {
@@ -7,32 +7,23 @@ pub struct TraversalContext {
 }
 
 impl TraversalContext {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn walk_scene(&mut self, scene: &Scene) {
-        for expr in &scene.expressions {
+    pub fn walk_all(&mut self, expressions: &[ResolvedExpr]) {
+        for expr in expressions {
             self.walk(expr);
         }
     }
 
-    pub fn walk(&mut self, expr: &Expr) {
+    pub fn walk(&mut self, expr: &ResolvedExpr) {
         match expr {
-            Expr::Num(n) => self.process_num(*n),
-            Expr::List(list) => self.process_list(list),
-            Expr::Ref(name) => panic!("Unresolved reference reached execution: {}", name),
-        }
-    }
-
-    fn process_num(&mut self, n: i32) {
-        self.total_sum += n;
-        self.output_buffer.push(n);
-    }
-
-    fn process_list(&mut self, list: &[Expr]) {
-        for child in list {
-            self.walk(child);
+            ResolvedExpr::Num(n) => {
+                self.total_sum += n;
+                self.output_buffer.push(*n);
+            }
+            ResolvedExpr::List(list) => {
+                for child in list {
+                    self.walk(child);
+                }
+            }
         }
     }
 }
