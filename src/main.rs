@@ -39,9 +39,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut ctx = TraversalContext::default();
     ctx.walk_all(&resolved_expressions);
 
-    println!("--- Pass 3 Results ---");
-    println!("Sum: {}", ctx.total_sum);
-    println!("Buffer: {:?}", ctx.output_buffer);
+    println!("--- Pass 3 Results (MIDI Track) ---");
+    println!("Total Ticks: {}", ctx.current_tick);
+    for note in &ctx.track {
+        println!(
+            "Tick {:>4} -> Note On: Pitch {:>3}, Vel {:>3} (Duration: {})",
+            note.start_tick, note.pitch, note.velocity, note.duration
+        );
+    }
 
     Ok(())
 }
