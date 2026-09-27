@@ -1,4 +1,4 @@
-use super::ast::{Expr, Program};
+use super::ast::{Expr, Scene};
 
 #[derive(Debug, Default)]
 pub struct TraversalContext {
@@ -11,8 +11,8 @@ impl TraversalContext {
         Self::default()
     }
 
-    pub fn walk_program(&mut self, program: &Program) {
-        for expr in &program.expressions {
+    pub fn walk_scene(&mut self, scene: &Scene) {
+        for expr in &scene.expressions {
             self.walk(expr);
         }
     }

@@ -8,7 +8,7 @@ use syntax::traversal::TraversalContext;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-
+    
     if args.len() < 2 {
         eprintln!("Usage: {} <input_file>", args[0]);
         std::process::exit(1);
@@ -19,29 +19,29 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read file '{}': {}", filename, err));
 
     // PASS 1: Parse the entire file into a single AST
-    let mut program = match parser::program_parser().parse(&file_contents).into_result() {
+    let mut scene = match parser::scene_parser().parse(&file_contents).into_result() {
         Ok(ast) => ast,
         Err(errs) => {
             println!("Syntax Error:\n{:?}", errs);
             std::process::exit(1);
         }
     };
-
+    
     println!("--- AST After Pass 1 (Parse) ---");
-    println!("{:?}\n", program);
+    println!("{:?}\n", scene);
 
-    // PASS 2: Expand all macros globally
-    if let Err(e) = program.expand_all_refs() {
+    // PASS 2: Expand all aliases globally
+    if let Err(e) = scene.expand_all_refs() {
         println!("Resolution Error: {}", e);
         std::process::exit(1);
     }
 
     println!("--- AST After Pass 2 (Resolution) ---");
-    println!("{:?}\n", program.expressions);
+    println!("{:?}\n", scene.expressions);
 
     // PASS 3: Traversal / Execution
     let mut ctx = TraversalContext::new();
-    ctx.walk_program(&program);
+    ctx.walk_scene(&scene);
 
     println!("--- Pass 3 Results ---");
     println!("Sum: {}", ctx.total_sum);
