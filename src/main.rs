@@ -8,7 +8,7 @@ use syntax::traversal::TraversalContext;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         eprintln!("Usage: {} <input_file>", args[0]);
         std::process::exit(1);
@@ -18,35 +18,32 @@ fn main() {
     let file_contents = fs::read_to_string(filename)
         .unwrap_or_else(|err| panic!("Failed to read file '{}': {}", filename, err));
 
-    // Process the file line by line
-    for (line_num, line) in file_contents.lines().enumerate() {
-        let input = line.trim();
-        
-        // Skip empty lines
-        if input.is_empty() {
-            continue;
+    // PASS 1: Parse the entire file into a single AST
+    let mut program = match parser::program_parser().parse(&file_contents).into_result() {
+        Ok(ast) => ast,
+        Err(errs) => {
+            println!("Syntax Error:\n{:?}", errs);
+            std::process::exit(1);
         }
+    };
 
-        println!("--- Line {}: {} ---", line_num + 1, input);
+    println!("--- AST After Pass 1 (Parse) ---");
+    println!("{:?}\n", program);
 
-        // 1. Parse (Syntax -> AST)
-        match parser::expr_parser().parse(input).into_result() {
-            Ok(ast) => {
-                println!("Success parsing '{}':\n{:?}\n", input, ast);
-                
-                // 2. Setup Context
-                let mut ctx = TraversalContext::new();
-
-                // 3. Execute (AST + Context -> Output)
-                ctx.walk(&ast);
-
-                // 4. Read Results
-                println!("Sum: {}", ctx.total_sum);
-                println!("Buffer: {:?}\n", ctx.output_buffer);
-            }
-            Err(errs) => {
-                println!("Error parsing:\n{:?}\n", errs);
-            }
-        }
+    // PASS 2: Expand all macros globally
+    if let Err(e) = program.expand_all_refs() {
+        println!("Resolution Error: {}", e);
+        std::process::exit(1);
     }
+
+    println!("--- AST After Pass 2 (Resolution) ---");
+    println!("{:?}\n", program.expressions);
+
+    // PASS 3: Traversal / Execution
+    let mut ctx = TraversalContext::new();
+    ctx.walk_program(&program);
+
+    println!("--- Pass 3 Results ---");
+    println!("Sum: {}", ctx.total_sum);
+    println!("Buffer: {:?}", ctx.output_buffer);
 }

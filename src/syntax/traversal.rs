@@ -1,6 +1,5 @@
-use super::ast::Expr;
+use super::ast::{Expr, Program};
 
-/// Holds the state of the traversal as we walk down the tree.
 #[derive(Debug, Default)]
 pub struct TraversalContext {
     pub total_sum: i32,
@@ -12,22 +11,26 @@ impl TraversalContext {
         Self::default()
     }
 
-    /// The main entry point for traversing an AST node.
+    pub fn walk_program(&mut self, program: &Program) {
+        for expr in &program.expressions {
+            self.walk(expr);
+        }
+    }
+
     pub fn walk(&mut self, expr: &Expr) {
         match expr {
             Expr::Num(n) => self.process_num(*n),
             Expr::List(list) => self.process_list(list),
+            Expr::Ref(name) => panic!("Unresolved reference reached execution: {}", name),
         }
     }
 
     fn process_num(&mut self, n: i32) {
-        // Mutate context state when hitting a leaf node
         self.total_sum += n;
         self.output_buffer.push(n);
     }
 
     fn process_list(&mut self, list: &[Expr]) {
-        // Recursively route branch nodes back through the main walker
         for child in list {
             self.walk(child);
         }
