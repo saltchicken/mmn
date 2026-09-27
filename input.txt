@@ -1,5 +1,6 @@
-#root 62
-#scale minor
+#ROOT C
+#OCTAVE 6
+#SCALE minor
 
 x = 10
 y = 20
