@@ -104,11 +104,20 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
 pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a, char>>> {
     let expr = expr_parser();
 
+    // Changed: Configs now consume everything up to the newline as a single string
     let config = just('#')
         .ignore_then(text::ascii::ident())
+        .then(none_of('\n').repeated().collect::<String>())
         .padded_by(padding())
-        .then(expr.clone())
-        .map(|(name, e)| TopLevelItem::Config(name.to_string(), e));
+        .map(|(name, val)| {
+            // Strip out inline comments if any exist on the config line
+            let cleaned_val = if let Some(idx) = val.find("//") {
+                val[..idx].trim().to_string()
+            } else {
+                val.trim().to_string()
+            };
+            TopLevelItem::Config(name.to_string(), Expr::Str(cleaned_val))
+        });
 
     let alias_assign = text::ascii::ident()
         .padded_by(padding())

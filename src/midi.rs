@@ -1,3 +1,4 @@
+// src/midi.rs
 use std::collections::HashMap;
 use crate::syntax::ast::Expr;
 use crate::syntax::traversal::SeqEvent;
@@ -45,7 +46,7 @@ fn get_scale_intervals(scale_name: &str) -> Result<Vec<u8>, String> {
 
 /// Generates a concrete MIDI track from abstract sequences and configs
 pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> Result<MidiTrack, String> {
-    let required_keys = ["ROOT", "SCALE", "BPM"];
+    let required_keys = ["SCALE", "BPM"];
     for key in required_keys {
         if !configs.contains_key(key) {
             return Err(format!("Missing required configuration: #{}", key));
@@ -58,32 +59,37 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
     let mut bpm = 120;
 
     for (name, expr) in configs {
+        let val_str = match expr {
+            Expr::Str(s) => s.as_str(),
+            _ => return Err(format!("#{name} config must evaluate to a string")),
+        };
+
         match name.as_str() {
-            "ROOT" => {
-                match expr {
-                    Expr::Symbol(s) | Expr::Ident(s) | Expr::Str(s) => {
-                        root_class = match_pitch_class(s).ok_or_else(|| format!("Invalid ROOT: {}", s))?;
-                    }
-                    _ => return Err("#ROOT must be a note symbol like C or C#".to_string()),
-                }
-            }
-            "OCTAVE" => {
-                if let Expr::Interval { index, .. } = expr { octave = *index; } 
-                else { return Err("#OCTAVE must be a number".to_string()); }
-            }
             "SCALE" => {
-                match expr {
-                    Expr::Str(s) | Expr::Ident(s) => scale = get_scale_intervals(s)?,
-                    _ => return Err("#SCALE must be a string or identifier".to_string()),
+                let parts: Vec<&str> = val_str.split_whitespace().collect();
+                if parts.len() != 2 {
+                    return Err("#SCALE must be in format '<NOTE><OCTAVE> <SCALE_NAME>', e.g. 'C4 minor'".to_string());
                 }
+
+                let note_str = parts[0].to_uppercase();
+                let scale_name = parts[1];
+
+                // Split at the first number found (to separate "C" or "C#" from "4")
+                let split_idx = note_str.find(|c: char| c.is_ascii_digit())
+                    .ok_or_else(|| format!("Missing octave in scale root: {}", parts[0]))?;
+                
+                let (note_part, octave_part) = note_str.split_at(split_idx);
+                
+                root_class = match_pitch_class(note_part)
+                    .ok_or_else(|| format!("Invalid root note: {}", note_part))?;
+                
+                octave = octave_part.parse::<i32>()
+                    .map_err(|_| format!("Invalid octave: {}", octave_part))?;
+
+                scale = get_scale_intervals(scale_name)?;
             }
             "BPM" => {
-                if let Expr::Interval { index, .. } = expr {
-                    if *index > 0 { bpm = *index as u32; } 
-                    else { return Err("#BPM must be positive".to_string()); }
-                } else {
-                    return Err("#BPM must be a number".to_string());
-                }
+                bpm = val_str.parse::<u32>().map_err(|_| "#BPM must be a valid positive integer".to_string())?;
             }
             _ => {}
         }
