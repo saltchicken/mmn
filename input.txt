@@ -3,5 +3,5 @@
 #SCALE minor
 #BPM 95
 
-
-[0 _ [5 6 7 8] ~]
+// I am a comment
+[0 _ [5 6 7 8] ~] // I am also a comment

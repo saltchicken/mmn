@@ -8,6 +8,14 @@ enum TopLevelItem {
     Expr(Expr),
 }
 
+/// Custom padding parser that ignores both standard whitespace and single-line comments.
+fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + Clone {
+    let whitespace = any().filter(|c: &char| c.is_whitespace()).ignored();
+    let comment = just("//").ignore_then(none_of('\n').repeated()).ignored();
+    
+    whitespace.or(comment).repeated().ignored()
+}
+
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> + Clone {
     recursive(|expr| {
         let num = just('-')
@@ -17,21 +25,25 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 let val: i32 = s.parse().unwrap();
                 Expr::Num(if minus.is_some() { -val } else { val })
             })
-            .padded();
+            .padded_by(padding());
 
         let string = just('"')
             .ignore_then(none_of('"').repeated().collect::<String>())
             .then_ignore(just('"'))
             .map(Expr::Str)
-            .padded();
+            .padded_by(padding());
 
         let list = expr
             .clone()
             .repeated()
             .collect::<Vec<_>>()
-            .delimited_by(just('['), just(']'))
+            // Apply padding to brackets to allow comments inside empty lists
+            .delimited_by(
+                just('[').padded_by(padding()), 
+                just(']').padded_by(padding())
+            )
             .map(Expr::List)
-            .padded();
+            .padded_by(padding());
 
         let reference = text::ascii::ident()
             .then(just('#').or_not()) // 'b' or 'B' is naturally captured by ident() earlier
@@ -58,12 +70,11 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                     Expr::Ident(s)
                 }
             })
-            .padded();
+            .padded_by(padding());
 
         // Tilde is not a valid ident character, so it's safe to parse separately
-        let rest = just('~').map(|_| Expr::Rest).padded();
+        let rest = just('~').map(|_| Expr::Rest).padded_by(padding());
 
-        // Removed the separate `tie` parser since it's now handled inside `reference`
         num.or(string).or(list).or(reference).or(rest)
     })
 }
@@ -73,13 +84,13 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
 
     let config = just('#')
         .ignore_then(text::ascii::ident())
-        .padded()
+        .padded_by(padding())
         .then(expr.clone())
         .map(|(name, e)| TopLevelItem::Config(name.to_string(), e));
 
     let alias_assign = text::ascii::ident()
-        .padded()
-        .then_ignore(just('=').padded())
+        .padded_by(padding())
+        .then_ignore(just('=').padded_by(padding()))
         .then(expr.clone())
         .map(|(name, e)| TopLevelItem::Alias(name.to_string(), e));
 
@@ -87,7 +98,7 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
     let top_level_item = config
         .or(alias_assign)
         .or(expr.map(TopLevelItem::Expr))
-        .padded();
+        .padded_by(padding());
 
     // Consume the entire file, fold into a Scene AST
     top_level_item
@@ -119,5 +130,6 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
                 expressions,
             }
         })
-        .then_ignore(end())
+        // pad end() in case the file ends with a trailing comment or is entirely comments
+        .then_ignore(end().padded_by(padding()))
 }
