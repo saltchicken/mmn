@@ -14,9 +14,8 @@ pub struct TraversalContext {
     pub current_tick: u32,
     pub track: Vec<MidiNote>,
 
-    // Musical Context
-    pub root_note: u8,  // 60 = Middle C
-    pub scale: Vec<u8>, // Semitone offsets from the root
+    pub root_note: u8,
+    pub scale: Vec<u8>,
     pub bpm: u32,
 }
 
@@ -25,15 +24,13 @@ impl Default for TraversalContext {
         Self {
             current_tick: 0,
             track: Vec::new(),
-            root_note: 60, // C4
-            // Default to a Major Scale (Ionian)
+            root_note: 60,
             scale: vec![0, 2, 4, 5, 7, 9, 11],
             bpm: 120,
         }
     }
 }
 
-/// Helper to map a musical pitch class string to a 0-11 integer
 fn match_pitch_class(note: &str) -> Option<i32> {
     match note.to_uppercase().as_str() {
         "C" => Some(0),
@@ -53,36 +50,45 @@ fn match_pitch_class(note: &str) -> Option<i32> {
 }
 
 impl TraversalContext {
-    /// Applies scene configurations by interpreting the raw AST configs
-    pub fn apply_scene_configs(&mut self, configs: &HashMap<String, Expr>) {
-        let mut root_class = None;
-        let mut octave = None;
+    /// Applies scene configs and returns an Err if required configs are missing or invalid
+    pub fn apply_scene_configs(&mut self, configs: &HashMap<String, Expr>) -> Result<(), String> {
+        // 1. Enforce required configs
+        let required_keys = ["ROOT", "SCALE", "BPM"];
+        for key in required_keys {
+            if !configs.contains_key(key) {
+                return Err(format!("Missing required configuration: #{}", key));
+            }
+        }
 
+        let mut root_class = 0;
+        let mut octave = 4; // Default to octave 4 if #OCTAVE isn't specified
+
+        // 2. Process all configs
         for (name, expr) in configs {
             match name.as_str() {
                 "ROOT" => {
                     if let Expr::Ref(s) = expr {
                         if let Some(c) = match_pitch_class(s) {
-                            root_class = Some(c);
+                            root_class = c;
                         } else {
-                            println!("Warning: Invalid ROOT pitch class '{}'", s);
+                            return Err(format!("Invalid ROOT pitch class '{}'", s));
                         }
                     } else {
-                        println!("Warning: #ROOT must be a note like C or C#");
+                        return Err("#ROOT must be a note like C or C#".to_string());
                     }
                 }
                 "OCTAVE" => {
                     if let Expr::Num(n) = expr {
-                        octave = Some(*n);
+                        octave = *n;
                     } else {
-                        println!("Warning: #OCTAVE must be a number");
+                        return Err("#OCTAVE must be a number".to_string());
                     }
                 }
                 "SCALE" => {
                     if let Expr::Ref(s) = expr {
-                        self.apply_scale(s);
+                        self.apply_scale(s)?;
                     } else {
-                        println!("Warning: #SCALE must be a string like minor or major");
+                        return Err("#SCALE must be a string like minor or major".to_string());
                     }
                 }
                 "BPM" => {
@@ -90,10 +96,10 @@ impl TraversalContext {
                         if *n > 0 {
                             self.bpm = *n as u32;
                         } else {
-                            println!("Warning: #BPM must be a positive number");
+                            return Err("#BPM must be a positive number".to_string());
                         }
                     } else {
-                        println!("Warning: #BPM must be a number");
+                        return Err("#BPM must be a number".to_string());
                     }
                 }
                 _ => {
@@ -102,26 +108,22 @@ impl TraversalContext {
             }
         }
 
-        // Calculate the final MIDI root note if ROOT or OCTAVE was specified.
-        if root_class.is_some() || octave.is_some() {
-            let c = root_class.unwrap_or(0); // Default to C
-            let o = octave.unwrap_or(4); // Default to octave 4
+        // 3. Finalize MIDI root note
+        let midi_note = (octave + 1) * 12 + root_class;
 
-            // C4 = 60 => (4 + 1) * 12 + 0 = 60
-            let midi_note = (o + 1) * 12 + c;
-
-            if (0..=127).contains(&midi_note) {
-                self.root_note = midi_note as u8;
-            } else {
-                println!(
-                    "Warning: Calculated root note {} is out of MIDI range (0-127). Falling back to default.",
-                    midi_note
-                );
-            }
+        if (0..=127).contains(&midi_note) {
+            self.root_note = midi_note as u8;
+        } else {
+            return Err(format!(
+                "Calculated root note {} is out of MIDI range (0-127). Check your #ROOT and #OCTAVE values.",
+                midi_note
+            ));
         }
+
+        Ok(())
     }
 
-    fn apply_scale(&mut self, scale_name: &str) {
+    fn apply_scale(&mut self, scale_name: &str) -> Result<(), String> {
         self.scale = match scale_name.to_lowercase().as_str() {
             "minor" | "aeolian" => vec![0, 2, 3, 5, 7, 8, 10],
             "major" | "ionian" => vec![0, 2, 4, 5, 7, 9, 11],
@@ -132,14 +134,9 @@ impl TraversalContext {
             "locrian" => vec![0, 1, 3, 5, 6, 8, 10],
             "pentatonic" => vec![0, 2, 4, 7, 9],
             "minor_pentatonic" => vec![0, 3, 5, 7, 10],
-            _ => {
-                println!(
-                    "Warning: Unknown scale '{}', defaulting to major",
-                    scale_name
-                );
-                vec![0, 2, 4, 5, 7, 9, 11]
-            }
+            _ => return Err(format!("Unknown scale '{}'", scale_name)),
         };
+        Ok(())
     }
 
     pub fn walk_all(&mut self, expressions: &[ResolvedExpr]) {
@@ -148,18 +145,14 @@ impl TraversalContext {
         }
     }
 
-    /// Converts a scale degree into a MIDI pitch.
     fn calculate_pitch(&self, degree: i32) -> u8 {
         let scale_len = self.scale.len() as i32;
-
-        // div_euclid and rem_euclid correctly handle negative degrees
         let octave_shift = degree.div_euclid(scale_len);
         let scale_index = degree.rem_euclid(scale_len) as usize;
 
         let pitch_offset = (octave_shift * 12) + self.scale[scale_index] as i32;
         let final_pitch = (self.root_note as i32) + pitch_offset;
 
-        // Ensure we don't crash DAW synths by going out of MIDI bounds
         final_pitch.clamp(0, 127) as u8
     }
 
