@@ -25,13 +25,13 @@ fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + C
 
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> + Clone {
     recursive(|expr| {
-        // Keep standard weight parser for Chords, Patterns, and Rests (now using '%')
+        // Simple weight parser for Rests
         let weight = just('%')
             .ignore_then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap()))
             .or_not()
             .map(|w| w.unwrap_or(1));
 
-        // Unordered modifier parser for intervals
+        // Unordered modifier parser for intervals, patterns, and chords
         let modifier = just('@')
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
             .or(
@@ -42,19 +42,16 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
         let interval = just('-')
             .or_not()
             .then(text::int(10))
-            // Parse any number of modifiers in any order
             .then(modifier.repeated().collect::<Vec<_>>())
             .map(|((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
                 let val: i32 = s.parse().unwrap();
                 
-                // Defaults
-                let mut velocity = 127;
+                let mut velocity = None; // Now defaults to None
                 let mut weight = 1;
                 
-                // Apply modifiers (last one wins if a user accidentally duplicates)
                 for m in mods {
                     match m {
-                        Modifier::Velocity(v) => velocity = v,
+                        Modifier::Velocity(v) => velocity = Some(v),
                         Modifier::Weight(w) => weight = w,
                     }
                 }
@@ -79,8 +76,18 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .at_least(2)
             .collect::<Vec<_>>()
             .delimited_by(just('[').padded_by(padding()), just(']').padded_by(padding()))
-            .then(weight.clone())
-            .map(|(elements, weight)| Expr::Chord { elements, weight })
+            .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
+            .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
+                let mut velocity = None;
+                let mut weight = 1;
+                for m in mods {
+                    match m {
+                        Modifier::Velocity(v) => velocity = Some(v),
+                        Modifier::Weight(w) => weight = w,
+                    }
+                }
+                Expr::Chord { elements, velocity, weight }
+            })
             .padded_by(padding());
 
         // 2. Sequences: Elements separated by spaces
@@ -88,8 +95,18 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .repeated()
             .collect::<Vec<_>>()
             .delimited_by(just('[').padded_by(padding()), just(']').padded_by(padding()))
-            .then(weight.clone())
-            .map(|(elements, weight)| Expr::Pattern { elements, weight })
+            .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
+            .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
+                let mut velocity = None;
+                let mut weight = 1;
+                for m in mods {
+                    match m {
+                        Modifier::Velocity(v) => velocity = Some(v),
+                        Modifier::Weight(w) => weight = w,
+                    }
+                }
+                Expr::Pattern { elements, velocity, weight }
+            })
             .padded_by(padding());
 
         let reference = text::ascii::ident()
