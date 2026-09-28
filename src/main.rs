@@ -1,5 +1,5 @@
 mod syntax;
-mod midi; // Bring in the new codegen backend
+mod midi;
 
 use chumsky::Parser;
 use std::env;
@@ -24,12 +24,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into_result()
         .map_err(|errs| format!("Syntax Error: {:?}", errs))?;
 
+    println!("--- Pass 1 Results (Raw AST) ---");
+    println!("{:?}\n", scene);
+
     // PASS 2: Resolution (Expand aliases safely)
     let resolved_expressions = scene.resolve_all()?;
+
+    println!("--- Pass 2 Results (Resolved AST) ---");
+    println!("{:?}\n", resolved_expressions);
 
     // PASS 3: Traversal (AST -> Generic IR Sequence)
     let mut ctx = TraversalContext::default();
     ctx.walk_all(&resolved_expressions);
+
+    println!("--- Pass 3 Results (Traversal / IR Sequence) ---");
+    println!("{:?}\n", ctx.sequence);
 
     // PASS 4: Backend / Codegen (Generic IR + Configs -> Concrete MIDI Data)
     let track_data = generate_midi(&scene.configs, &ctx.sequence)?;
