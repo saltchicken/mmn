@@ -36,6 +36,11 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
         let reference = text::ascii::ident()
             .then(just('#').or_not()) // 'b' or 'B' is naturally captured by ident() earlier
             .map(|(id, hash): (&str, Option<char>)| {
+                // Intercept the underscore here before it becomes an Ident
+                if id == "_" && hash.is_none() {
+                    return Expr::Tie;
+                }
+
                 let mut s = id.to_string();
                 if let Some(h) = hash {
                     s.push(h);
@@ -55,7 +60,11 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             })
             .padded();
 
-        num.or(string).or(list).or(reference)
+        // Tilde is not a valid ident character, so it's safe to parse separately
+        let rest = just('~').map(|_| Expr::Rest).padded();
+
+        // Removed the separate `tie` parser since it's now handled inside `reference`
+        num.or(string).or(list).or(reference).or(rest)
     })
 }
 

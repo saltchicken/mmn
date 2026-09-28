@@ -7,12 +7,16 @@ pub enum Expr {
     Ident(String),
     Symbol(String),
     Str(String),
+    Rest, // Represents '~'
+    Tie,  // Represents '_'
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedExpr {
     Interval(i32),
     Pattern(Vec<ResolvedExpr>), // Changed from List to Pattern
+    Rest,
+    Tie,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,6 +59,8 @@ impl Scene {
             }
             Expr::Symbol(s) => Err(format!("Unexpected musical symbol in sequence: {}", s)),
             Expr::Str(s) => Err(format!("Unexpected string in sequence: {}", s)),
+            Expr::Rest => Ok(ResolvedExpr::Rest),
+            Expr::Tie => Ok(ResolvedExpr::Tie),
         }
     }
 }

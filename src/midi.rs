@@ -95,7 +95,7 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
     }
 
     let mut notes = Vec::new();
-    let ticks_per_step = 480; // Standard MIDI resolution (Pulses Per Quarter Note)
+    let ticks_per_step = 480.0; // Standard MIDI resolution (Pulses Per Quarter Note) as f64
 
     for event in sequence {
         let scale_len = scale.len() as i32;
@@ -108,8 +108,9 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
         notes.push(MidiNote {
             pitch: final_pitch.clamp(0, 127) as u8,
             velocity: 100,
-            start_tick: event.start_step * ticks_per_step,
-            duration: event.duration_steps * ticks_per_step,
+            // Multiply float timing by PPQN and round to nearest integer tick
+            start_tick: (event.start_step * ticks_per_step).round() as u32,
+            duration: (event.duration_steps * ticks_per_step).round() as u32,
         });
     }
 
