@@ -19,7 +19,7 @@ pub enum ResolvedExpr {
     Chord { elements: Vec<ResolvedExpr>, weight: u32 },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)] // Added Default trait
 pub struct Scene {
     pub configs: HashMap<String, Expr>,
     pub aliases: HashMap<String, Expr>,
@@ -40,8 +40,10 @@ impl Scene {
         }
 
         match expr {
+            // Used struct initialization shorthand
             Expr::Interval { index, weight } => Ok(ResolvedExpr::Interval { index: *index, weight: *weight }),
             Expr::Rest { weight } => Ok(ResolvedExpr::Rest { weight: *weight }),
+            
             Expr::Pattern { elements, weight } => {
                 let resolved = elements
                     .iter()
@@ -49,6 +51,7 @@ impl Scene {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(ResolvedExpr::Pattern { elements: resolved, weight: *weight })
             }
+            
             Expr::Chord { elements, weight } => {
                 let resolved = elements
                     .iter()
@@ -56,14 +59,13 @@ impl Scene {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(ResolvedExpr::Chord { elements: resolved, weight: *weight })
             }
+            
             Expr::Ident(name) => {
-                let alias_expr = self
-                    .aliases
-                    .get(name)
+                let alias_expr = self.aliases.get(name)
                     .ok_or_else(|| format!("Unresolved alias: '{}'", name))?;
-                // Recursively resolve the alias
                 self.resolve_expr(alias_expr, depth + 1)
             }
+            
             Expr::Symbol(s) => Err(format!("Unexpected musical symbol in sequence: {}", s)),
             Expr::Str(s) => Err(format!("Unexpected string in sequence: {}", s)),
         }

@@ -1,19 +1,20 @@
 mod syntax;
 
-use chumsky::Parser;
 use std::env;
 use std::fs;
+use std::process;
+use chumsky::Parser;
 use syntax::parser;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        return Err(format!("Usage: {} <input_file>", args[0]).into());
+        eprintln!("Usage: {} <input_file>", args[0]);
+        process::exit(1);
     }
 
-    let filename = &args[1];
-    let file_contents = fs::read_to_string(filename)?;
+    let file_contents = fs::read_to_string(&args[1])?;
 
     // PASS 1: Parse (Text -> AST)
     let scene = parser::scene_parser()
@@ -28,16 +29,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for expr in &scene.expressions {
         println!("  {:?}", expr);
     }
-    println!();
-
+    
     // PASS 2: Resolution (Expand aliases safely)
     let resolved_expressions = scene.resolve_all()?;
 
-    println!("--- Pass 2 Results (Resolved AST) ---");
+    println!("\n--- Pass 2 Results (Resolved AST) ---");
     for expr in &resolved_expressions {
         println!("{:?}", expr);
     }
-    println!();
 
     Ok(())
 }
