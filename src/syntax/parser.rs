@@ -8,6 +8,13 @@ enum TopLevelItem {
     Expr(Expr),
 }
 
+// A helper enum to capture order-independent modifiers
+#[derive(Clone, Copy)]
+enum Modifier {
+    Velocity(u32),
+    Weight(u32),
+}
+
 /// Custom padding parser that ignores both standard whitespace and single-line comments.
 fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + Clone {
     let whitespace = any().filter(|c: &char| c.is_whitespace()).ignored();
@@ -18,20 +25,43 @@ fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + C
 
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> + Clone {
     recursive(|expr| {
-        let weight = just('@')
+        // Keep standard weight parser for Chords, Patterns, and Rests (now using '%')
+        let weight = just('%')
             .ignore_then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap()))
             .or_not()
             .map(|w| w.unwrap_or(1));
 
+        // Unordered modifier parser for intervals
+        let modifier = just('@')
+            .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
+            .or(
+                just('%')
+                .ignore_then(text::int(10).map(|s: &str| Modifier::Weight(s.parse().unwrap())))
+            );
+
         let interval = just('-')
             .or_not()
             .then(text::int(10))
-            .then(weight.clone())
-            // Add the explicit type annotation back here:
-            .map(|((minus, s), weight): ((Option<char>, &str), u32)| {
+            // Parse any number of modifiers in any order
+            .then(modifier.repeated().collect::<Vec<_>>())
+            .map(|((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
                 let val: i32 = s.parse().unwrap();
+                
+                // Defaults
+                let mut velocity = 127;
+                let mut weight = 1;
+                
+                // Apply modifiers (last one wins if a user accidentally duplicates)
+                for m in mods {
+                    match m {
+                        Modifier::Velocity(v) => velocity = v,
+                        Modifier::Weight(w) => weight = w,
+                    }
+                }
+                
                 Expr::Interval { 
                     index: if minus.is_some() { -val } else { val }, 
+                    velocity,
                     weight 
                 }
             })
@@ -64,12 +94,10 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
 
         let reference = text::ascii::ident()
             .then(just('#').or_not())
-            // Add the explicit type annotation back here:
             .map(|(id, hash): (&str, Option<char>)| {
                 let mut s = id.to_string();
                 if let Some(h) = hash { s.push(h); }
                 
-                // Simplified using the matches! macro
                 let is_symbol = matches!(
                     s.to_uppercase().as_str(),
                     "C" | "C#" | "DB" | "D" | "D#" | "EB" | "E" | "F" | "F#" | 
@@ -81,7 +109,7 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .padded_by(padding());
 
         let rest = just('~')
-            .ignore_then(weight) // 'weight' is already cloned where needed above
+            .ignore_then(weight) 
             .map(|weight| Expr::Rest { weight })
             .padded_by(padding());
 
@@ -97,7 +125,6 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
         .then(none_of('\n').repeated().collect::<String>())
         .padded_by(padding())
         .map(|(name, val)| {
-            // Simplified string manipulation
             let cleaned_val = val.split("//").next().unwrap_or(&val).trim().to_string();
             TopLevelItem::Config(name.to_string(), Expr::Str(cleaned_val))
         });
@@ -115,7 +142,6 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
         .repeated()
         .collect::<Vec<_>>()
         .map(|items| {
-            // Initialize Scene directly
             let mut scene = Scene {
                 configs: HashMap::new(),
                 aliases: HashMap::new(),

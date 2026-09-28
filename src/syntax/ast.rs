@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Interval { index: i32, weight: u32 },
+    Interval { index: i32, velocity: u32, weight: u32 }, // Added velocity
     Rest { weight: u32 },
     Pattern { elements: Vec<Expr>, weight: u32 },
     Chord { elements: Vec<Expr>, weight: u32 },
@@ -13,13 +13,13 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedExpr {
-    Interval { index: i32, weight: u32 },
+    Interval { index: i32, velocity: u32, weight: u32 }, // Added velocity
     Rest { weight: u32 },
     Pattern { elements: Vec<ResolvedExpr>, weight: u32 },
     Chord { elements: Vec<ResolvedExpr>, weight: u32 },
 }
 
-#[derive(Debug, Clone, PartialEq, Default)] // Added Default trait
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Scene {
     pub configs: HashMap<String, Expr>,
     pub aliases: HashMap<String, Expr>,
@@ -40,8 +40,12 @@ impl Scene {
         }
 
         match expr {
-            // Used struct initialization shorthand
-            Expr::Interval { index, weight } => Ok(ResolvedExpr::Interval { index: *index, weight: *weight }),
+            // Pass velocity through the resolution step
+            Expr::Interval { index, velocity, weight } => Ok(ResolvedExpr::Interval { 
+                index: *index, 
+                velocity: *velocity, 
+                weight: *weight 
+            }),
             Expr::Rest { weight } => Ok(ResolvedExpr::Rest { weight: *weight }),
             
             Expr::Pattern { elements, weight } => {
