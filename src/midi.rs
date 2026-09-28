@@ -60,10 +60,11 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
     for (name, expr) in configs {
         match name.as_str() {
             "ROOT" => {
-                if let Expr::Ref(s) = expr {
-                    root_class = match_pitch_class(s).ok_or_else(|| format!("Invalid ROOT: {}", s))?;
-                } else {
-                    return Err("#ROOT must be a note like C or C#".to_string());
+                match expr {
+                    Expr::Symbol(s) | Expr::Ident(s) | Expr::Str(s) => {
+                        root_class = match_pitch_class(s).ok_or_else(|| format!("Invalid ROOT: {}", s))?;
+                    }
+                    _ => return Err("#ROOT must be a note symbol like C or C#".to_string()),
                 }
             }
             "OCTAVE" => {
@@ -71,8 +72,10 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
                 else { return Err("#OCTAVE must be a number".to_string()); }
             }
             "SCALE" => {
-                if let Expr::Ref(s) = expr { scale = get_scale_intervals(s)?; } 
-                else { return Err("#SCALE must be a string".to_string()); }
+                match expr {
+                    Expr::Str(s) | Expr::Ident(s) => scale = get_scale_intervals(s)?,
+                    _ => return Err("#SCALE must be a string or identifier".to_string()),
+                }
             }
             "BPM" => {
                 if let Expr::Num(n) = expr {

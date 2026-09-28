@@ -19,6 +19,12 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             })
             .padded();
 
+        let string = just('"')
+            .ignore_then(none_of('"').repeated().collect::<String>())
+            .then_ignore(just('"'))
+            .map(Expr::Str)
+            .padded();
+
         let list = expr
             .clone()
             .repeated()
@@ -28,17 +34,28 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .padded();
 
         let reference = text::ascii::ident()
-            .then(just('#').or(just('b')).or(just('B')).or_not())
-            .map(|(id, accidental): (&str, Option<char>)| {
+            .then(just('#').or_not()) // 'b' or 'B' is naturally captured by ident() earlier
+            .map(|(id, hash): (&str, Option<char>)| {
                 let mut s = id.to_string();
-                if let Some(a) = accidental {
-                    s.push(a);
+                if let Some(h) = hash {
+                    s.push(h);
                 }
-                Expr::Ref(s)
+                
+                // Discriminate between musical symbols (e.g. C#, Db) and generic identifiers
+                let is_symbol = match s.to_uppercase().as_str() {
+                    "C" | "C#" | "DB" | "D" | "D#" | "EB" | "E" | "F" | "F#" | "GB" | "G" | "G#" | "AB" | "A" | "A#" | "BB" | "B" => true,
+                    _ => false,
+                };
+
+                if is_symbol {
+                    Expr::Symbol(s)
+                } else {
+                    Expr::Ident(s)
+                }
             })
             .padded();
 
-        num.or(list).or(reference)
+        num.or(string).or(list).or(reference)
     })
 }
 

@@ -4,7 +4,9 @@ use std::collections::HashMap;
 pub enum Expr {
     Num(i32),
     List(Vec<Expr>),
-    Ref(String),
+    Ident(String),
+    Symbol(String),
+    Str(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,7 +45,7 @@ impl Scene {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(ResolvedExpr::List(resolved_list))
             }
-            Expr::Ref(name) => {
+            Expr::Ident(name) => {
                 let alias_expr = self
                     .aliases
                     .get(name)
@@ -51,6 +53,8 @@ impl Scene {
                 // Recursively resolve the alias
                 self.resolve_expr(alias_expr, depth + 1)
             }
+            Expr::Symbol(s) => Err(format!("Unexpected musical symbol in sequence: {}", s)),
+            Expr::Str(s) => Err(format!("Unexpected string in sequence: {}", s)),
         }
     }
 }
