@@ -22,13 +22,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|errs| format!("Syntax Error: {:?}", errs))?;
 
     println!("--- Pass 1 Results (Raw AST) ---");
-    println!("{:?}\n", scene);
+    println!("Configs: {:?}", scene.configs);
+    println!("Aliases: {:?}", scene.aliases);
+    println!("Expressions:");
+    for expr in &scene.expressions {
+        println!("  {:?}", expr);
+    }
+    println!();
 
     // PASS 2: Resolution (Expand aliases safely)
     let resolved_expressions = scene.resolve_all()?;
 
     println!("--- Pass 2 Results (Resolved AST) ---");
-    println!("{:?}\n", resolved_expressions);
+    for expr in &resolved_expressions {
+        println!("{:?}", expr);
+    }
+    println!();
 
     Ok(())
 }
