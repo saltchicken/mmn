@@ -19,7 +19,7 @@ enum Modifier {
 fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + Clone {
     let whitespace = any().filter(|c: &char| c.is_whitespace()).ignored();
     let comment = just("//").then_ignore(none_of('\n').repeated()).ignored();
-    
+
     whitespace.or(comment).repeated().ignored()
 }
 
@@ -34,34 +34,34 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
         // Unordered modifier parser for intervals, patterns, and chords
         let modifier = just('@')
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
-            .or(
-                just('%')
-                .ignore_then(text::int(10).map(|s: &str| Modifier::Weight(s.parse().unwrap())))
-            );
+            .or(just('%')
+                .ignore_then(text::int(10).map(|s: &str| Modifier::Weight(s.parse().unwrap()))));
 
         let interval = just('-')
             .or_not()
             .then(text::int(10))
             .then(modifier.repeated().collect::<Vec<_>>())
-            .map(|((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
-                let val: i32 = s.parse().unwrap();
-                
-                let mut velocity = None; // Now defaults to None
-                let mut weight = 1;
-                
-                for m in mods {
-                    match m {
-                        Modifier::Velocity(v) => velocity = Some(v),
-                        Modifier::Weight(w) => weight = w,
+            .map(
+                |((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
+                    let val: i32 = s.parse().unwrap();
+
+                    let mut velocity = None; // Now defaults to None
+                    let mut weight = 1;
+
+                    for m in mods {
+                        match m {
+                            Modifier::Velocity(v) => velocity = Some(v),
+                            Modifier::Weight(w) => weight = w,
+                        }
                     }
-                }
-                
-                Expr::Interval { 
-                    index: if minus.is_some() { -val } else { val }, 
-                    velocity,
-                    weight 
-                }
-            })
+
+                    Expr::Interval {
+                        index: if minus.is_some() { -val } else { val },
+                        velocity,
+                        weight,
+                    }
+                },
+            )
             .padded_by(padding());
 
         let string = just('"')
@@ -71,11 +71,15 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .padded_by(padding());
 
         // 1. Chords: Elements separated by commas
-        let comma_list = expr.clone()
+        let comma_list = expr
+            .clone()
             .separated_by(just(',').padded_by(padding()))
             .at_least(2)
             .collect::<Vec<_>>()
-            .delimited_by(just('[').padded_by(padding()), just(']').padded_by(padding()))
+            .delimited_by(
+                just('[').padded_by(padding()),
+                just(']').padded_by(padding()),
+            )
             .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
                 let mut velocity = None;
@@ -86,15 +90,23 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                         Modifier::Weight(w) => weight = w,
                     }
                 }
-                Expr::Chord { elements, velocity, weight }
+                Expr::Chord {
+                    elements,
+                    velocity,
+                    weight,
+                }
             })
             .padded_by(padding());
 
         // 2. Sequences: Elements separated by spaces
-        let space_list = expr.clone()
+        let space_list = expr
+            .clone()
             .repeated()
             .collect::<Vec<_>>()
-            .delimited_by(just('[').padded_by(padding()), just(']').padded_by(padding()))
+            .delimited_by(
+                just('[').padded_by(padding()),
+                just(']').padded_by(padding()),
+            )
             .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
                 let mut velocity = None;
@@ -105,7 +117,11 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                         Modifier::Weight(w) => weight = w,
                     }
                 }
-                Expr::Pattern { elements, velocity, weight }
+                Expr::Pattern {
+                    elements,
+                    velocity,
+                    weight,
+                }
             })
             .padded_by(padding());
 
@@ -113,24 +129,49 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .then(just('#').or_not())
             .map(|(id, hash): (&str, Option<char>)| {
                 let mut s = id.to_string();
-                if let Some(h) = hash { s.push(h); }
-                
+                if let Some(h) = hash {
+                    s.push(h);
+                }
+
                 let is_symbol = matches!(
                     s.to_uppercase().as_str(),
-                    "C" | "C#" | "DB" | "D" | "D#" | "EB" | "E" | "F" | "F#" | 
-                    "GB" | "G" | "G#" | "AB" | "A" | "A#" | "BB" | "B"
+                    "C" | "C#"
+                        | "DB"
+                        | "D"
+                        | "D#"
+                        | "EB"
+                        | "E"
+                        | "F"
+                        | "F#"
+                        | "GB"
+                        | "G"
+                        | "G#"
+                        | "AB"
+                        | "A"
+                        | "A#"
+                        | "BB"
+                        | "B"
                 );
 
-                if is_symbol { Expr::Symbol(s) } else { Expr::Ident(s) }
+                if is_symbol {
+                    Expr::Symbol(s)
+                } else {
+                    Expr::Ident(s)
+                }
             })
             .padded_by(padding());
 
         let rest = just('~')
-            .ignore_then(weight) 
+            .ignore_then(weight)
             .map(|weight| Expr::Rest { weight })
             .padded_by(padding());
 
-        interval.or(string).or(comma_list).or(space_list).or(reference).or(rest)
+        interval
+            .or(string)
+            .or(comma_list)
+            .or(space_list)
+            .or(reference)
+            .or(rest)
     })
 }
 
@@ -167,9 +208,15 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
 
             for item in items {
                 match item {
-                    TopLevelItem::Config(name, expr) => { scene.configs.insert(name.to_uppercase(), expr); }
-                    TopLevelItem::Alias(name, expr) => { scene.aliases.insert(name, expr); }
-                    TopLevelItem::Expr(expr) => { scene.expressions.push(expr); }
+                    TopLevelItem::Config(name, expr) => {
+                        scene.configs.insert(name.to_uppercase(), expr);
+                    }
+                    TopLevelItem::Alias(name, expr) => {
+                        scene.aliases.insert(name, expr);
+                    }
+                    TopLevelItem::Expr(expr) => {
+                        scene.expressions.push(expr);
+                    }
                 }
             }
             scene

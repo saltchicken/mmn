@@ -1,9 +1,9 @@
 mod syntax;
 
+use chumsky::Parser;
 use std::env;
 use std::fs;
 use std::process;
-use chumsky::Parser;
 use syntax::parser;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for expr in &scene.expressions {
         println!("  {:?}", expr);
     }
-    
+
     // PASS 2: Resolution (Expand aliases safely)
     let resolved_expressions = scene.resolve_all()?;
 
