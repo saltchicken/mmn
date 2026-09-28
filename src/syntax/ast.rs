@@ -11,7 +11,7 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedExpr {
-    Num(i32),
+    Interval(i32),
     List(Vec<ResolvedExpr>),
 }
 
@@ -37,7 +37,7 @@ impl Scene {
         }
 
         match expr {
-            Expr::Num(n) => Ok(ResolvedExpr::Num(*n)),
+            Expr::Num(n) => Ok(ResolvedExpr::Interval(*n)),
             Expr::List(list) => {
                 let resolved_list = list
                     .iter()

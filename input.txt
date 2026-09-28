@@ -3,4 +3,6 @@
 #SCALE minor
 #BPM 95
 
-[0 1 2 3]
+melody = [0 1 2 3]
+
+melody

@@ -23,7 +23,7 @@ impl TraversalContext {
 
     pub fn walk(&mut self, expr: &ResolvedExpr) {
         match expr {
-            ResolvedExpr::Num(n) => {
+            ResolvedExpr::Interval(n) => {
                 // We record the abstract scale degree and timing, nothing more.
                 self.sequence.push(SeqEvent {
                     degree: *n,
