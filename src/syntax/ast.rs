@@ -19,18 +19,6 @@ pub enum ResolvedExpr {
     Chord { elements: Vec<ResolvedExpr>, weight: u32 },
 }
 
-impl ResolvedExpr {
-    /// Helper to get the weight of any resolved expression for time calculation
-    pub fn weight(&self) -> u32 {
-        match self {
-            ResolvedExpr::Interval { weight, .. } => *weight,
-            ResolvedExpr::Rest { weight } => *weight,
-            ResolvedExpr::Pattern { weight, .. } => *weight,
-            ResolvedExpr::Chord { weight, .. } => *weight,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
     pub configs: HashMap<String, Expr>,
