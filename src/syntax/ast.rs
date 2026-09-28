@@ -15,9 +15,8 @@ pub enum ResolvedExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
-    pub root_note: Option<u8>,
-    pub scale: Option<String>,
-    pub bpm: Option<u32>,
+    // Configs are now just stored as raw parsed key-value expressions
+    pub configs: HashMap<String, Expr>,
     pub aliases: HashMap<String, Expr>,
     pub expressions: Vec<Expr>,
 }

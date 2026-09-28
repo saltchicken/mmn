@@ -38,8 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // PASS 3: Traversal / Execution
     let mut ctx = TraversalContext::default();
     
-    // Apply configurations parsed from the text file (#root, #scale)
-    ctx.apply_config(scene.root_note, scene.scale.clone(), scene.bpm);
+    // Apply configurations parsed from the text file (#root, #scale) dynamically
+    ctx.apply_scene_configs(&scene.configs);
     
     ctx.walk_all(&resolved_expressions);
 
