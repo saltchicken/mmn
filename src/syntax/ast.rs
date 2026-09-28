@@ -5,20 +5,20 @@ pub enum Expr {
     Interval {
         index: i32,
         velocity: Option<u32>,
-        weight: u32,
+        weight: f32,
     },
     Rest {
-        weight: u32,
+        weight: f32,
     },
     Pattern {
         elements: Vec<Expr>,
         velocity: Option<u32>,
-        weight: u32,
+        weight: f32,
     },
     Chord {
         elements: Vec<Expr>,
         velocity: Option<u32>,
-        weight: u32,
+        weight: f32,
     },
     Ident(String),
     Symbol(String),
@@ -30,18 +30,18 @@ pub enum ResolvedExpr {
     Interval {
         index: i32,
         velocity: u32,
-        weight: u32,
+        weight: f32,
     },
     Rest {
-        weight: u32,
+        weight: f32,
     },
     Pattern {
         elements: Vec<ResolvedExpr>,
-        weight: u32,
+        weight: f32,
     },
     Chord {
         elements: Vec<ResolvedExpr>,
-        weight: u32,
+        weight: f32,
     },
 }
 

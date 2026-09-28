@@ -12,7 +12,7 @@ enum TopLevelItem {
 #[derive(Clone, Copy)]
 enum Modifier {
     Velocity(u32),
-    Weight(u32),
+    Weight(f32),
 }
 
 /// Custom padding parser that ignores both standard whitespace and single-line comments.
@@ -25,28 +25,39 @@ fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + C
 
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> + Clone {
     recursive(|expr| {
+        // Construct a float parser that supports integers and decimals
+        let float = text::int(10)
+            .then(just('.').ignore_then(text::int(10)).or_not())
+            .map(|(int_part, frac_part): (&str, Option<&str>)| {
+                if let Some(frac) = frac_part {
+                    format!("{}.{}", int_part, frac).parse::<f32>().unwrap()
+                } else {
+                    int_part.parse::<f32>().unwrap()
+                }
+            });
+
         // Simple weight parser for Rests
         let weight = just('%')
-            .ignore_then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap()))
+            .ignore_then(float.clone())
             .or_not()
-            .map(|w| w.unwrap_or(1));
+            .map(|w| w.unwrap_or(1.0));
 
         // Unordered modifier parser for intervals, patterns, and chords
         let modifier = just('@')
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
             .or(just('%')
-                .ignore_then(text::int(10).map(|s: &str| Modifier::Weight(s.parse().unwrap()))));
+                .ignore_then(float.clone().map(|f| Modifier::Weight(f))));
 
         let interval = just('-')
             .or_not()
             .then(text::int(10))
-            .then(modifier.repeated().collect::<Vec<_>>())
+            .then(modifier.clone().repeated().collect::<Vec<_>>())
             .map(
                 |((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
                     let val: i32 = s.parse().unwrap();
 
-                    let mut velocity = None; // Now defaults to None
-                    let mut weight = 1;
+                    let mut velocity = None; 
+                    let mut weight = 1.0;
 
                     for m in mods {
                         match m {
@@ -80,10 +91,10 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
+            .then(modifier.clone().repeated().collect::<Vec<_>>()) 
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
                 let mut velocity = None;
-                let mut weight = 1;
+                let mut weight = 1.0;
                 for m in mods {
                     match m {
                         Modifier::Velocity(v) => velocity = Some(v),
@@ -107,10 +118,10 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.repeated().collect::<Vec<_>>()) // Now accepts any order of modifiers!
+            .then(modifier.clone().repeated().collect::<Vec<_>>()) 
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
                 let mut velocity = None;
-                let mut weight = 1;
+                let mut weight = 1.0;
                 for m in mods {
                     match m {
                         Modifier::Velocity(v) => velocity = Some(v),
