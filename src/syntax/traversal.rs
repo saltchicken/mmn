@@ -33,8 +33,9 @@ impl TraversalContext {
                 
                 self.current_step += 1;
             }
-            ResolvedExpr::List(list) => {
-                for child in list {
+            // Match against Pattern instead of List
+            ResolvedExpr::Pattern(pattern) => {
+                for child in pattern {
                     self.walk(child);
                 }
             }

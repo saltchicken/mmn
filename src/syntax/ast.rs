@@ -12,12 +12,11 @@ pub enum Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedExpr {
     Interval(i32),
-    List(Vec<ResolvedExpr>),
+    Pattern(Vec<ResolvedExpr>), // Changed from List to Pattern
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
-    // Configs are now just stored as raw parsed key-value expressions
     pub configs: HashMap<String, Expr>,
     pub aliases: HashMap<String, Expr>,
     pub expressions: Vec<Expr>,
@@ -43,7 +42,8 @@ impl Scene {
                     .iter()
                     .map(|e| self.resolve_expr(e, depth))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(ResolvedExpr::List(resolved_list))
+                // Resolve into a Pattern instead of a List
+                Ok(ResolvedExpr::Pattern(resolved_list)) 
             }
             Expr::Ident(name) => {
                 let alias_expr = self
