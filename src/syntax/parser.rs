@@ -18,12 +18,22 @@ fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + C
 
 pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, char>>> + Clone {
     recursive(|expr| {
-        let num = just('-')
+        // Parses "@3", "@4", etc. Defaults to 1 if not present.
+        let weight = just('@')
+            .ignore_then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap()))
+            .or_not()
+            .map(|w| w.unwrap_or(1));
+
+        let interval = just('-')
             .or_not()
             .then(text::int(10))
-            .map(|(minus, s): (Option<char>, &str)| {
+            .then(weight.clone()) // Attach weight
+            .map(|((minus, s), w): ((Option<char>, &str), u32)| {
                 let val: i32 = s.parse().unwrap();
-                Expr::Num(if minus.is_some() { -val } else { val })
+                Expr::Interval { 
+                    index: if minus.is_some() { -val } else { val }, 
+                    weight: w 
+                }
             })
             .padded_by(padding());
 
@@ -33,32 +43,41 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .map(Expr::Str)
             .padded_by(padding());
 
-        let list = expr
+        // 1. Chords: Elements separated by commas, optional weight at the end
+        let comma_list = expr
             .clone()
-            .repeated()
+            .separated_by(just(',').padded_by(padding()))
+            .at_least(2)
             .collect::<Vec<_>>()
-            // Apply padding to brackets to allow comments inside empty lists
             .delimited_by(
                 just('[').padded_by(padding()), 
                 just(']').padded_by(padding())
             )
-            .map(Expr::List)
+            .then(weight.clone()) // Attach weight
+            .map(|(elements, w)| Expr::Chord { elements, weight: w })
+            .padded_by(padding());
+
+        // 2. Sequences: Elements separated by spaces, optional weight at the end
+        let space_list = expr
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .delimited_by(
+                just('[').padded_by(padding()), 
+                just(']').padded_by(padding())
+            )
+            .then(weight.clone()) // Attach weight
+            .map(|(elements, w)| Expr::Pattern { elements, weight: w })
             .padded_by(padding());
 
         let reference = text::ascii::ident()
-            .then(just('#').or_not()) // 'b' or 'B' is naturally captured by ident() earlier
+            .then(just('#').or_not())
             .map(|(id, hash): (&str, Option<char>)| {
-                // Intercept the underscore here before it becomes an Ident
-                if id == "_" && hash.is_none() {
-                    return Expr::Tie;
-                }
-
                 let mut s = id.to_string();
                 if let Some(h) = hash {
                     s.push(h);
                 }
                 
-                // Discriminate between musical symbols (e.g. C#, Db) and generic identifiers
                 let is_symbol = match s.to_uppercase().as_str() {
                     "C" | "C#" | "DB" | "D" | "D#" | "EB" | "E" | "F" | "F#" | "GB" | "G" | "G#" | "AB" | "A" | "A#" | "BB" | "B" => true,
                     _ => false,
@@ -72,10 +91,13 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             })
             .padded_by(padding());
 
-        // Tilde is not a valid ident character, so it's safe to parse separately
-        let rest = just('~').map(|_| Expr::Rest).padded_by(padding());
+        // Attach weight to rests
+        let rest = just('~')
+            .ignore_then(weight.clone())
+            .map(|w| Expr::Rest { weight: w })
+            .padded_by(padding());
 
-        num.or(string).or(list).or(reference).or(rest)
+        interval.or(string).or(comma_list).or(space_list).or(reference).or(rest)
     })
 }
 
@@ -94,13 +116,11 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
         .then(expr.clone())
         .map(|(name, e)| TopLevelItem::Alias(name.to_string(), e));
 
-    // Try config, then alias, then expression
     let top_level_item = config
         .or(alias_assign)
         .or(expr.map(TopLevelItem::Expr))
         .padded_by(padding());
 
-    // Consume the entire file, fold into a Scene AST
     top_level_item
         .repeated()
         .collect::<Vec<_>>()
@@ -112,7 +132,6 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
             for item in items {
                 match item {
                     TopLevelItem::Config(name, expr) => {
-                        // Store the configuration raw
                         configs.insert(name.to_uppercase(), expr);
                     }
                     TopLevelItem::Alias(name, expr) => {
@@ -130,6 +149,5 @@ pub fn scene_parser<'a>() -> impl Parser<'a, &'a str, Scene, extra::Err<Rich<'a,
                 expressions,
             }
         })
-        // pad end() in case the file ends with a trailing comment or is entirely comments
         .then_ignore(end().padded_by(padding()))
 }

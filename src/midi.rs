@@ -68,7 +68,7 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
                 }
             }
             "OCTAVE" => {
-                if let Expr::Num(n) = expr { octave = *n; } 
+                if let Expr::Interval { index, .. } = expr { octave = *index; } 
                 else { return Err("#OCTAVE must be a number".to_string()); }
             }
             "SCALE" => {
@@ -78,8 +78,8 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
                 }
             }
             "BPM" => {
-                if let Expr::Num(n) = expr {
-                    if *n > 0 { bpm = *n as u32; } 
+                if let Expr::Interval { index, .. } = expr {
+                    if *index > 0 { bpm = *index as u32; } 
                     else { return Err("#BPM must be positive".to_string()); }
                 } else {
                     return Err("#BPM must be a number".to_string());
@@ -99,8 +99,8 @@ pub fn generate_midi(configs: &HashMap<String, Expr>, sequence: &[SeqEvent]) -> 
 
     for event in sequence {
         let scale_len = scale.len() as i32;
-        let octave_shift = event.degree.div_euclid(scale_len);
-        let scale_index = event.degree.rem_euclid(scale_len) as usize;
+        let octave_shift = event.index.div_euclid(scale_len);
+        let scale_index = event.index.rem_euclid(scale_len) as usize;
         
         let pitch_offset = (octave_shift * 12) + scale[scale_index] as i32;
         let final_pitch = midi_root_note + pitch_offset;

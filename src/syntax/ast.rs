@@ -2,21 +2,33 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Num(i32),
-    List(Vec<Expr>),
+    Interval { index: i32, weight: u32 },
+    Rest { weight: u32 },
+    Pattern { elements: Vec<Expr>, weight: u32 },
+    Chord { elements: Vec<Expr>, weight: u32 },
     Ident(String),
     Symbol(String),
     Str(String),
-    Rest, // Represents '~'
-    Tie,  // Represents '_'
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedExpr {
-    Interval(i32),
-    Pattern(Vec<ResolvedExpr>), // Changed from List to Pattern
-    Rest,
-    Tie,
+    Interval { index: i32, weight: u32 },
+    Rest { weight: u32 },
+    Pattern { elements: Vec<ResolvedExpr>, weight: u32 },
+    Chord { elements: Vec<ResolvedExpr>, weight: u32 },
+}
+
+impl ResolvedExpr {
+    /// Helper to get the weight of any resolved expression for time calculation
+    pub fn weight(&self) -> u32 {
+        match self {
+            ResolvedExpr::Interval { weight, .. } => *weight,
+            ResolvedExpr::Rest { weight } => *weight,
+            ResolvedExpr::Pattern { weight, .. } => *weight,
+            ResolvedExpr::Chord { weight, .. } => *weight,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,14 +52,21 @@ impl Scene {
         }
 
         match expr {
-            Expr::Num(n) => Ok(ResolvedExpr::Interval(*n)),
-            Expr::List(list) => {
-                let resolved_list = list
+            Expr::Interval { index, weight } => Ok(ResolvedExpr::Interval { index: *index, weight: *weight }),
+            Expr::Rest { weight } => Ok(ResolvedExpr::Rest { weight: *weight }),
+            Expr::Pattern { elements, weight } => {
+                let resolved = elements
                     .iter()
                     .map(|e| self.resolve_expr(e, depth))
                     .collect::<Result<Vec<_>, _>>()?;
-                // Resolve into a Pattern instead of a List
-                Ok(ResolvedExpr::Pattern(resolved_list)) 
+                Ok(ResolvedExpr::Pattern { elements: resolved, weight: *weight })
+            }
+            Expr::Chord { elements, weight } => {
+                let resolved = elements
+                    .iter()
+                    .map(|e| self.resolve_expr(e, depth))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(ResolvedExpr::Chord { elements: resolved, weight: *weight })
             }
             Expr::Ident(name) => {
                 let alias_expr = self
@@ -59,8 +78,6 @@ impl Scene {
             }
             Expr::Symbol(s) => Err(format!("Unexpected musical symbol in sequence: {}", s)),
             Expr::Str(s) => Err(format!("Unexpected string in sequence: {}", s)),
-            Expr::Rest => Ok(ResolvedExpr::Rest),
-            Expr::Tie => Ok(ResolvedExpr::Tie),
         }
     }
 }
