@@ -72,6 +72,15 @@ impl Scene {
             return Err("Max alias expansion depth exceeded".to_string());
         }
 
+        // Shared closure to handle mapping over nested pattern/chord elements
+        let resolve_group = |elements: &[Expr], vel: Option<u32>| -> Result<Vec<ResolvedExpr>, String> {
+            let current_vel = vel.unwrap_or(inherited_vel);
+            elements
+                .iter()
+                .map(|e| self.resolve_expr(e, depth, current_vel))
+                .collect()
+        };
+
         match expr {
             Expr::Interval {
                 index,
@@ -88,34 +97,19 @@ impl Scene {
                 elements,
                 velocity,
                 weight,
-            } => {
-                // Determine what velocity we pass to our children
-                let current_vel = velocity.unwrap_or(inherited_vel);
-                let resolved = elements
-                    .iter()
-                    .map(|e| self.resolve_expr(e, depth, current_vel))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(ResolvedExpr::Pattern {
-                    elements: resolved,
-                    weight: *weight,
-                })
-            }
+            } => Ok(ResolvedExpr::Pattern {
+                elements: resolve_group(elements, *velocity)?,
+                weight: *weight,
+            }),
 
             Expr::Chord {
                 elements,
                 velocity,
                 weight,
-            } => {
-                let current_vel = velocity.unwrap_or(inherited_vel);
-                let resolved = elements
-                    .iter()
-                    .map(|e| self.resolve_expr(e, depth, current_vel))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(ResolvedExpr::Chord {
-                    elements: resolved,
-                    weight: *weight,
-                })
-            }
+            } => Ok(ResolvedExpr::Chord {
+                elements: resolve_group(elements, *velocity)?,
+                weight: *weight,
+            }),
 
             Expr::Ident(name) => {
                 let alias_expr = self

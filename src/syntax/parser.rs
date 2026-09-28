@@ -15,6 +15,19 @@ enum Modifier {
     Weight(f32),
 }
 
+// Helper function to fold parsed modifiers down to a standardized tuple
+fn apply_modifiers(mods: Vec<Modifier>) -> (Option<u32>, f32) {
+    let mut velocity = None;
+    let mut weight = 1.0;
+    for m in mods {
+        match m {
+            Modifier::Velocity(v) => velocity = Some(v),
+            Modifier::Weight(w) => weight = w,
+        }
+    }
+    (velocity, weight)
+}
+
 /// Custom padding parser that ignores both standard whitespace and single-line comments.
 fn padding<'a>() -> impl Parser<'a, &'a str, (), extra::Err<Rich<'a, char>>> + Clone {
     let whitespace = any().filter(|c: &char| c.is_whitespace()).ignored();
@@ -45,34 +58,22 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
         // Unordered modifier parser for intervals, patterns, and chords
         let modifier = just('@')
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
-            .or(just('%')
-                .ignore_then(float.clone().map(|f| Modifier::Weight(f))));
+            .or(just('%').ignore_then(float.clone().map(|f| Modifier::Weight(f))));
 
         let interval = just('-')
             .or_not()
             .then(text::int(10))
             .then(modifier.clone().repeated().collect::<Vec<_>>())
-            .map(
-                |((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
-                    let val: i32 = s.parse().unwrap();
+            .map(|((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
+                let val: i32 = s.parse().unwrap();
+                let (velocity, weight) = apply_modifiers(mods);
 
-                    let mut velocity = None; 
-                    let mut weight = 1.0;
-
-                    for m in mods {
-                        match m {
-                            Modifier::Velocity(v) => velocity = Some(v),
-                            Modifier::Weight(w) => weight = w,
-                        }
-                    }
-
-                    Expr::Interval {
-                        index: if minus.is_some() { -val } else { val },
-                        velocity,
-                        weight,
-                    }
-                },
-            )
+                Expr::Interval {
+                    index: if minus.is_some() { -val } else { val },
+                    velocity,
+                    weight,
+                }
+            })
             .padded_by(padding());
 
         let string = just('"')
@@ -91,16 +92,9 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.clone().repeated().collect::<Vec<_>>()) 
+            .then(modifier.clone().repeated().collect::<Vec<_>>())
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
-                let mut velocity = None;
-                let mut weight = 1.0;
-                for m in mods {
-                    match m {
-                        Modifier::Velocity(v) => velocity = Some(v),
-                        Modifier::Weight(w) => weight = w,
-                    }
-                }
+                let (velocity, weight) = apply_modifiers(mods);
                 Expr::Chord {
                     elements,
                     velocity,
@@ -118,16 +112,9 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.clone().repeated().collect::<Vec<_>>()) 
+            .then(modifier.clone().repeated().collect::<Vec<_>>())
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
-                let mut velocity = None;
-                let mut weight = 1.0;
-                for m in mods {
-                    match m {
-                        Modifier::Velocity(v) => velocity = Some(v),
-                        Modifier::Weight(w) => weight = w,
-                    }
-                }
+                let (velocity, weight) = apply_modifiers(mods);
                 Expr::Pattern {
                     elements,
                     velocity,
