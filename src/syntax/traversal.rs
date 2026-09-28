@@ -13,10 +13,10 @@ pub struct MidiNote {
 pub struct TraversalContext {
     pub current_tick: u32,
     pub track: Vec<MidiNote>,
-    
+
     // Musical Context
-    pub root_note: u8,   // 60 = Middle C
-    pub scale: Vec<u8>,  // Semitone offsets from the root
+    pub root_note: u8,  // 60 = Middle C
+    pub scale: Vec<u8>, // Semitone offsets from the root
     pub bpm: u32,
 }
 
@@ -105,15 +105,18 @@ impl TraversalContext {
         // Calculate the final MIDI root note if ROOT or OCTAVE was specified.
         if root_class.is_some() || octave.is_some() {
             let c = root_class.unwrap_or(0); // Default to C
-            let o = octave.unwrap_or(4);     // Default to octave 4
-            
+            let o = octave.unwrap_or(4); // Default to octave 4
+
             // C4 = 60 => (4 + 1) * 12 + 0 = 60
             let midi_note = (o + 1) * 12 + c;
-            
+
             if (0..=127).contains(&midi_note) {
                 self.root_note = midi_note as u8;
             } else {
-                println!("Warning: Calculated root note {} is out of MIDI range (0-127). Falling back to default.", midi_note);
+                println!(
+                    "Warning: Calculated root note {} is out of MIDI range (0-127). Falling back to default.",
+                    midi_note
+                );
             }
         }
     }
@@ -130,7 +133,10 @@ impl TraversalContext {
             "pentatonic" => vec![0, 2, 4, 7, 9],
             "minor_pentatonic" => vec![0, 3, 5, 7, 10],
             _ => {
-                println!("Warning: Unknown scale '{}', defaulting to major", scale_name);
+                println!(
+                    "Warning: Unknown scale '{}', defaulting to major",
+                    scale_name
+                );
                 vec![0, 2, 4, 5, 7, 9, 11]
             }
         };
@@ -145,14 +151,14 @@ impl TraversalContext {
     /// Converts a scale degree into a MIDI pitch.
     fn calculate_pitch(&self, degree: i32) -> u8 {
         let scale_len = self.scale.len() as i32;
-        
+
         // div_euclid and rem_euclid correctly handle negative degrees
         let octave_shift = degree.div_euclid(scale_len);
         let scale_index = degree.rem_euclid(scale_len) as usize;
-        
+
         let pitch_offset = (octave_shift * 12) + self.scale[scale_index] as i32;
         let final_pitch = (self.root_note as i32) + pitch_offset;
-        
+
         // Ensure we don't crash DAW synths by going out of MIDI bounds
         final_pitch.clamp(0, 127) as u8
     }
@@ -161,14 +167,14 @@ impl TraversalContext {
         match expr {
             ResolvedExpr::Num(n) => {
                 let pitch = self.calculate_pitch(*n);
-                
+
                 self.track.push(MidiNote {
                     pitch,
-                    velocity: 100, 
+                    velocity: 100,
                     start_tick: self.current_tick,
                     duration: 480,
                 });
-                
+
                 self.current_tick += 480;
             }
             ResolvedExpr::List(list) => {
