@@ -50,15 +50,25 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             });
 
         // Simple weight parser for Rests
-        let weight = just('%')
+        let weight = just(".weight")
+            .ignore_then(just('(').padded_by(padding()))
             .ignore_then(float.clone())
+            .then_ignore(just(')').padded_by(padding()))
             .or_not()
             .map(|w| w.unwrap_or(1.0));
 
         // Unordered modifier parser for intervals, patterns, and chords
-        let modifier = just('@')
+        let vel_mod = just(".vel")
+            .ignore_then(just('(').padded_by(padding()))
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
-            .or(just('%').ignore_then(float.clone().map(|f| Modifier::Weight(f))));
+            .then_ignore(just(')').padded_by(padding()));
+            
+        let weight_mod = just(".weight")
+            .ignore_then(just('(').padded_by(padding()))
+            .ignore_then(float.clone().map(|f| Modifier::Weight(f)))
+            .then_ignore(just(')').padded_by(padding()));
+
+        let modifier = vel_mod.or(weight_mod);
 
         let interval = just('-')
             .or_not()
