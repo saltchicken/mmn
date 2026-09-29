@@ -12,20 +12,21 @@ enum TopLevelItem {
 #[derive(Clone, Copy)]
 enum Modifier {
     Velocity(u32),
-    Weight(f32),
+    Hold(f32),
+    Span(f32),
 }
 
-// Helper function to fold parsed modifiers down to a standardized tuple
+// Helper function to fold parsed modifiers down to a standardized tuple (velocity, length)
 fn apply_modifiers(mods: Vec<Modifier>) -> (Option<u32>, f32) {
     let mut velocity = None;
-    let mut weight = 1.0;
+    let mut length = 1.0; // represents either hold or span
     for m in mods {
         match m {
             Modifier::Velocity(v) => velocity = Some(v),
-            Modifier::Weight(w) => weight = w,
+            Modifier::Hold(v) | Modifier::Span(v) => length = v,
         }
     }
-    (velocity, weight)
+    (velocity, length)
 }
 
 /// Custom padding parser that ignores both standard whitespace and single-line comments.
@@ -41,47 +42,51 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
         // Construct a float parser that supports integers and decimals
         let float = text::int(10)
             .then(just('.').ignore_then(text::int(10)).or_not())
-            .map(|(int_part, frac_part): (&str, Option<&str>)| {
-                if let Some(frac) = frac_part {
-                    format!("{}.{}", int_part, frac).parse::<f32>().unwrap()
-                } else {
-                    int_part.parse::<f32>().unwrap()
-                }
+            .to_slice() // Extracts the matched `&str` directly
+            .try_map(|s: &str, span| {
+                s.parse::<f32>().map_err(|_e| Rich::custom(span, "Invalid float value"))
             });
 
-        // Simple weight parser for Rests
-        let weight = just(".weight")
+        // Simple hold parser for Rests
+        let rest_hold = just(".hold")
             .ignore_then(just('(').padded_by(padding()))
             .ignore_then(float.clone())
             .then_ignore(just(')').padded_by(padding()))
             .or_not()
-            .map(|w| w.unwrap_or(1.0));
+            .map(|h| h.unwrap_or(1.0));
 
-        // Unordered modifier parser for intervals, patterns, and chords
+        // Unordered modifier parser components
         let vel_mod = just(".vel")
             .ignore_then(just('(').padded_by(padding()))
             .ignore_then(text::int(10).map(|s: &str| Modifier::Velocity(s.parse().unwrap())))
             .then_ignore(just(')').padded_by(padding()));
             
-        let weight_mod = just(".weight")
+        let hold_mod = just(".hold")
             .ignore_then(just('(').padded_by(padding()))
-            .ignore_then(float.clone().map(|f| Modifier::Weight(f)))
+            .ignore_then(float.clone().map(|f| Modifier::Hold(f)))
             .then_ignore(just(')').padded_by(padding()));
 
-        let modifier = vel_mod.or(weight_mod);
+        let span_mod = just(".span")
+            .ignore_then(just('(').padded_by(padding()))
+            .ignore_then(float.clone().map(|f| Modifier::Span(f)))
+            .then_ignore(just(')').padded_by(padding()));
+
+        // Separate groups: Hold applies to Intervals/Chords, Span applies to Patterns
+        let hold_modifier = vel_mod.clone().or(hold_mod);
+        let span_modifier = vel_mod.clone().or(span_mod);
 
         let interval = just('-')
             .or_not()
             .then(text::int(10))
-            .then(modifier.clone().repeated().collect::<Vec<_>>())
+            .then(hold_modifier.clone().repeated().collect::<Vec<_>>())
             .map(|((minus, s), mods): ((Option<char>, &str), Vec<Modifier>)| {
                 let val: i32 = s.parse().unwrap();
-                let (velocity, weight) = apply_modifiers(mods);
+                let (velocity, hold) = apply_modifiers(mods);
 
                 Expr::Interval {
                     index: if minus.is_some() { -val } else { val },
                     velocity,
-                    weight,
+                    hold,
                 }
             })
             .padded_by(padding());
@@ -92,7 +97,7 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .map(Expr::Str)
             .padded_by(padding());
 
-        // 1. Chords: Elements separated by commas
+        // 1. Chords: Elements separated by commas (uses hold)
         let comma_list = expr
             .clone()
             .separated_by(just(',').padded_by(padding()))
@@ -102,18 +107,18 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.clone().repeated().collect::<Vec<_>>())
+            .then(hold_modifier.clone().repeated().collect::<Vec<_>>())
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
-                let (velocity, weight) = apply_modifiers(mods);
+                let (velocity, hold) = apply_modifiers(mods);
                 Expr::Chord {
                     elements,
                     velocity,
-                    weight,
+                    hold,
                 }
             })
             .padded_by(padding());
 
-        // 2. Sequences: Elements separated by spaces
+        // 2. Sequences: Elements separated by spaces (uses span)
         let space_list = expr
             .clone()
             .repeated()
@@ -122,13 +127,13 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
                 just('[').padded_by(padding()),
                 just(']').padded_by(padding()),
             )
-            .then(modifier.clone().repeated().collect::<Vec<_>>())
+            .then(span_modifier.clone().repeated().collect::<Vec<_>>())
             .map(|(elements, mods): (Vec<Expr>, Vec<Modifier>)| {
-                let (velocity, weight) = apply_modifiers(mods);
+                let (velocity, span) = apply_modifiers(mods);
                 Expr::Pattern {
                     elements,
                     velocity,
-                    weight,
+                    span,
                 }
             })
             .padded_by(padding());
@@ -170,8 +175,8 @@ pub fn expr_parser<'a>() -> impl Parser<'a, &'a str, Expr, extra::Err<Rich<'a, c
             .padded_by(padding());
 
         let rest = just('~')
-            .ignore_then(weight)
-            .map(|weight| Expr::Rest { weight })
+            .ignore_then(rest_hold)
+            .map(|hold| Expr::Rest { hold })
             .padded_by(padding());
 
         interval

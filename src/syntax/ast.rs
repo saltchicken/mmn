@@ -5,20 +5,20 @@ pub enum Expr {
     Interval {
         index: i32,
         velocity: Option<u32>,
-        weight: f32,
+        hold: f32,
     },
     Rest {
-        weight: f32,
+        hold: f32,
     },
     Pattern {
         elements: Vec<Expr>,
         velocity: Option<u32>,
-        weight: f32,
+        span: f32,
     },
     Chord {
         elements: Vec<Expr>,
         velocity: Option<u32>,
-        weight: f32,
+        hold: f32,
     },
     Ident(String),
     Symbol(String),
@@ -30,18 +30,18 @@ pub enum ResolvedExpr {
     Interval {
         index: i32,
         velocity: u32,
-        weight: f32,
+        hold: f32,
     },
     Rest {
-        weight: f32,
+        hold: f32,
     },
     Pattern {
         elements: Vec<ResolvedExpr>,
-        weight: f32,
+        span: f32,
     },
     Chord {
         elements: Vec<ResolvedExpr>,
-        weight: f32,
+        hold: f32,
     },
 }
 
@@ -85,30 +85,30 @@ impl Scene {
             Expr::Interval {
                 index,
                 velocity,
-                weight,
+                hold,
             } => Ok(ResolvedExpr::Interval {
                 index: *index,
                 velocity: velocity.unwrap_or(inherited_vel), // Inherit if None!
-                weight: *weight,
+                hold: *hold,
             }),
-            Expr::Rest { weight } => Ok(ResolvedExpr::Rest { weight: *weight }),
+            Expr::Rest { hold } => Ok(ResolvedExpr::Rest { hold: *hold }),
 
             Expr::Pattern {
                 elements,
                 velocity,
-                weight,
+                span,
             } => Ok(ResolvedExpr::Pattern {
                 elements: resolve_group(elements, *velocity)?,
-                weight: *weight,
+                span: *span,
             }),
 
             Expr::Chord {
                 elements,
                 velocity,
-                weight,
+                hold,
             } => Ok(ResolvedExpr::Chord {
                 elements: resolve_group(elements, *velocity)?,
-                weight: *weight,
+                hold: *hold,
             }),
 
             Expr::Ident(name) => {
